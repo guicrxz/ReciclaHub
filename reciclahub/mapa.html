@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ReciclaHub - Mapa Interativo de Coleta</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <link rel="stylesheet" href="css/mapa.css">
+</head>
+<body class="h-full bg-slate-900 text-slate-100 flex flex-col font-sans antialiased">
+
+    <!-- CABEÇALHO SUPERIOR (Marca, Voltar e Ações) -->
+    <header class="h-16 bg-slate-800/80 backdrop-blur border-b border-slate-700/60 px-4 md:px-6 flex items-center justify-between z-20 shrink-0">
+        <div class="flex items-center gap-3">
+            <!-- Botão Voltar para a Landing Page -->
+            <a href="index.html" class="p-2 bg-slate-700/60 hover:bg-slate-700 border border-slate-600/60 rounded-xl text-slate-300 hover:text-white transition-all flex items-center gap-1 text-xs" title="Voltar para a página inicial">
+                <i data-lucide="arrow-left" class="w-4 h-4"></i>
+                <span class="hidden sm:inline">Início</span>
+            </a>
+
+            <div class="p-2 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400">
+                <i data-lucide="recycle" class="w-6 h-6"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-lg tracking-wide text-white flex items-center gap-2">
+                    ReciclaHub <span class="text-xs bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full">PROTÓTIPO FEIRA</span>
+                </h1>
+                <p class="text-xs text-slate-400">Mapeamento e Coleta Seletiva Local</p>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-3 md:gap-6 text-sm text-slate-300">
+            <div class="hidden lg:flex items-center gap-6 text-sm">
+                <div class="flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span><b id="totalPoints">5</b> Ecopontos Ativos</span>
+                </div>
+                <div class="flex items-center gap-2 border-l border-slate-700 pl-6">
+                    <i data-lucide="truck" class="w-4 h-4 text-emerald-400"></i>
+                    <span>Próxima Coleta: <b>Hoje às 14h</b></span>
+                </div>
+            </div>
+            <button onclick="abrirModalSugerir()" class="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-3.5 py-2 rounded-xl text-xs md:text-sm transition-all shadow-lg shadow-emerald-900/20">
+                <i data-lucide="plus-circle" class="w-4 h-4"></i>
+                <span>Sugerir Ponto</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- ÁREA PRINCIPAL (Sidebar Lateral + Mapa) -->
+    <div class="flex-1 flex flex-col md:flex-row overflow-hidden relative">
+
+        <!-- PAINEL LATERAL (Sidebar de Filtros e Lista) -->
+        <aside class="w-full md:w-96 bg-slate-800 border-r border-slate-700/60 flex flex-col z-10 shadow-2xl shrink-0 h-1/2 md:h-full">
+
+            <!-- Dashboard de Impacto Estimado -->
+            <div class="p-4 bg-slate-900/50 border-b border-slate-700/60">
+                <label class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-2 flex items-center gap-1.5">
+                    <i data-lucide="bar-chart-3" class="w-3.5 h-3.5 text-emerald-400"></i> Impacto Comunitário Estimado
+                </label>
+                <div class="grid grid-cols-2 gap-2">
+                    <div class="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700/50">
+                        <span class="text-xs text-slate-400 block">Óleo Reciclado</span>
+                        <span class="text-base font-bold text-emerald-400">1.250 L</span>
+                    </div>
+                    <div class="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700/50">
+                        <span class="text-xs text-slate-400 block">CO₂ Evitado</span>
+                        <span class="text-base font-bold text-emerald-400">3,4 Ton</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Caixa de Busca e Filtros -->
+            <div class="p-4 border-b border-slate-700/60 space-y-3">
+                <div class="relative">
+                    <i data-lucide="search" class="w-4 h-4 absolute left-3 top-3.5 text-slate-400"></i>
+                    <input type="text"
+                           id="searchInput"
+                           placeholder="Buscar por bairro ou local..."
+                           oninput="filtrarEcopontos()"
+                           class="w-full bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-4 py-2.5 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-colors">
+                </div>
+
+                <div>
+                    <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-2">Filtrar Material</label>
+                    <div class="flex flex-wrap gap-1.5" id="categoryChips">
+                        <button onclick="setFilter('todos', this)" class="chip-btn active px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-600 text-white transition-all">Todos</button>
+                        <button onclick="setFilter('Eletrônicos', this)" class="chip-btn px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-700 text-slate-300 hover:bg-slate-600 transition-all">Eletrônicos</button>
+                        <button onclick="setFilter('Óleo', this)" class="chip-btn px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-700 text-slate-300 hover:bg-slate-600 transition-all">Óleo</button>
+                        <button onclick="setFilter('Plástico/Papel', this)" class="chip-btn px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-700 text-slate-300 hover:bg-slate-600 transition-all">Recicláveis</button>
+                        <button onclick="setFilter('Baterias', this)" class="chip-btn px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-700 text-slate-300 hover:bg-slate-600 transition-all">Pilhas</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Container da Lista Dinâmica de Locais -->
+            <div class="flex-1 overflow-y-auto p-4 space-y-3" id="locationsList"></div>
+
+            <!-- Rodapé do Painel -->
+            <div class="p-4 bg-slate-800/90 border-t border-slate-700/60 text-xs text-slate-400 flex justify-between items-center shrink-0">
+                <span>Status da Rede: <strong class="text-emerald-400">Online</strong></span>
+                <button onclick="minhaLocalizacao()" class="flex items-center gap-1 text-emerald-400 hover:underline">
+                    <i data-lucide="crosshair" class="w-3.5 h-3.5"></i> Minha Posição
+                </button>
+            </div>
+        </aside>
+
+        <!-- ÁREA DO MAPA -->
+        <main class="flex-1 h-1/2 md:h-full w-full relative">
+            <div id="map" class="h-full w-full bg-slate-950"></div>
+        </main>
+    </div>
+
+    <!-- MODAL: Formulário de Sugestão de Novos Pontos -->
+    <div id="modalSugerir" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-[9999] hidden">
+        <div class="bg-slate-800 border border-slate-700 w-full max-w-md rounded-2xl shadow-2xl p-6 relative space-y-4">
+            <button onclick="fecharModalSugerir()" class="absolute right-4 top-4 text-slate-400 hover:text-white">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+
+            <div class="flex items-center gap-3">
+                <div class="p-2.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400">
+                    <i data-lucide="map-pin" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h3 class="font-bold text-lg text-white">Sugerir Ponto de Coleta</h3>
+                    <p class="text-xs text-slate-400">Cadastre um novo local de resíduos no bairro</p>
+                </div>
+            </div>
+
+            <form id="formNovoPonto" onsubmit="salvarNovoPonto(event)" class="space-y-3">
+                <div>
+                    <label class="text-xs font-semibold text-slate-300 block mb-1">Nome do Local</label>
+                    <input type="text" id="novoNome" required placeholder="Ex: Farmácia São Paulo / Ecoponto Vila" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500">
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="text-xs font-semibold text-slate-300 block mb-1">Categoria</label>
+                        <select id="novaCategoria" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-slate-200 focus:outline-none focus:border-emerald-500">
+                            <option value="Eletrônicos">Eletrônicos</option>
+                            <option value="Óleo">Óleo de Cozinha</option>
+                            <option value="Plástico/Papel">Plástico / Papel</option>
+                            <option value="Baterias">Pilhas e Baterias</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-xs font-semibold text-slate-300 block mb-1">Bairro</label>
+                        <input type="text" id="novoBairro" required placeholder="Ex: Vila Menck" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="text-xs font-semibold text-slate-300 block mb-1">Endereço Completo</label>
+                    <input type="text" id="novoEndereco" required placeholder="Ex: Rua Apis, 45" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500">
+                </div>
+
+                <div>
+                    <label class="text-xs font-semibold text-slate-300 block mb-1">Horário de Funcionamento</label>
+                    <input type="text" id="novoHorario" required placeholder="Ex: Seg a Sex: 08h - 18h" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500">
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="text-xs font-semibold text-slate-300 block mb-1">Latitude (opcional)</label>
+                        <input type="number" step="any" id="novaLat" placeholder="-23.5398" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500">
+                    </div>
+                    <div>
+                        <label class="text-xs font-semibold text-slate-300 block mb-1">Longitude (opcional)</label>
+                        <input type="number" step="any" id="novaLng" placeholder="-46.8455" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500">
+                    </div>
+                </div>
+
+                <div class="pt-2 flex justify-end gap-2">
+                    <button type="button" onclick="fecharModalSugerir()" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-xl text-xs font-medium">Cancelar</button>
+                    <button type="submit" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-medium">Adicionar Ponto</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="js/mapa.js"></script>
+
+</body>
+</html>
